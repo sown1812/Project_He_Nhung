@@ -1,0 +1,13 @@
+# Build folders
+Debug/
+Release/
+
+# IDE files
+.settings/
+*.su
+*.o
+*.d
+*.cyclo
+*.elf
+*.map
+*.list
