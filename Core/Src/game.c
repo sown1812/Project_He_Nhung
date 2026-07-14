@@ -14,6 +14,7 @@
 
 #include "stm32f429i_discovery.h"
 #include "stm32f429i_discovery_lcd.h"
+#include "stm32f429i_discovery_ts.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -235,17 +236,27 @@ static uint32_t rng_next(void)
 }
 
 /* ==========================================================================
- *  Nut bam: doc va phat hien suon len (chi flap 1 lan/lan nhan)
+ *  Doc nut bam va cam ung: Phat hien suon len (chi flap 1 lan/lan cham)
  * ========================================================================== */
 static uint8_t g_btn_prev = 0;
+static uint8_t g_ts_prev = 0;
 
-/* Tra ve 1 dung MOT khung hinh khi nut vua duoc nhan (rising edge). */
-static uint8_t button_pressed_edge(void)
+/* Tra ve 1 dung MOT khung hinh khi co nhan nut hoac cham man hinh (rising edge). */
+static uint8_t input_pressed_edge(void)
 {
-    uint8_t now = (BSP_PB_GetState(BUTTON_KEY) == 1) ? 1 : 0; /* PA0 active-high */
-    uint8_t edge = (now && !g_btn_prev) ? 1 : 0;
-    g_btn_prev = now;
-    return edge;
+    // 1. Doc nut bam USER
+    uint8_t btn_now = (BSP_PB_GetState(BUTTON_KEY) == 1) ? 1 : 0;
+    uint8_t btn_edge = (btn_now && !g_btn_prev) ? 1 : 0;
+    g_btn_prev = btn_now;
+
+    // 2. Doc cam ung man hinh
+    TS_StateTypeDef ts_state = {0};
+    BSP_TS_GetState(&ts_state);
+    uint8_t ts_now = (ts_state.TouchDetected > 0) ? 1 : 0;
+    uint8_t ts_edge = (ts_now && !g_ts_prev) ? 1 : 0;
+    g_ts_prev = ts_now;
+
+    return (btn_edge || ts_edge);
 }
 
 /* ==========================================================================
@@ -571,7 +582,8 @@ void Game_Init(void)
     /* --- Coi Buzzer & Timer 4 --- */
     Buzzer_Init();
 
-    /* --- Nut USER (B1 / PA0) --- */
+    /* --- Cam ung va Nut USER --- */
+    BSP_TS_Init(SCR_W, SCR_H);
     BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
 
     /* --- Trang thai ban dau --- */
@@ -595,7 +607,7 @@ void Game_Loop(void)
             continue;              /* chua toi khung hinh ke tiep */
         last += FRAME_MS;
 
-        uint8_t flap = button_pressed_edge();
+        uint8_t flap = input_pressed_edge();
 
         /* Gieo lai bo random theo thoi diem nhan nut dau tien */
         if (flap && g_state == STATE_READY)
