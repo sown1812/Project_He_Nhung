@@ -532,6 +532,7 @@ static void update_playing(uint8_t flap)
         g_shake_frames = 12; // Kich hoat rung man hinh
         g_flash_frames = 2;  // Kich hoat chop trang
         if (g_score > g_best) g_best = g_score;
+        save_best_score(g_best);
         return;
     }
 
@@ -567,6 +568,7 @@ static void update_playing(uint8_t flap)
                 g_shake_frames = 12; // Kich hoat rung man hinh
                 g_flash_frames = 2;  // Kich hoat chop trang
                 if (g_score > g_best) g_best = g_score;
+                save_best_score(g_best);
                 return;
             }
         }
@@ -695,7 +697,7 @@ void Game_Init(void)
     BSP_PB_Init(BUTTON_KEY, BUTTON_MODE_GPIO);
 
     /* --- Trang thai ban dau --- */
-    g_best          = 0;
+    g_best          = load_best_score();
     g_state         = STATE_READY;
     g_ground_scroll = 0;
     g_frame_count   = 0;
@@ -711,8 +713,10 @@ void Game_Loop(void)
 
     for (;;) {
         uint32_t now = HAL_GetTick();
-        if (now - last < FRAME_MS)
-            continue;              /* chua toi khung hinh ke tiep */
+        if (now - last < FRAME_MS) {
+            __WFI();            /* ngu tiet kiem dien den ngat ke tiep, thay vi quay vong */
+            continue;
+        }
         last += FRAME_MS;
 
         uint8_t flap = input_pressed_edge();
@@ -754,4 +758,34 @@ void Game_Loop(void)
 
         draw_frame();
     }
+}
+
+static uint32_t  g_best;
+
+/* ==========================================================================
+ *  Luu diem cao nhat vao Flash (sector cuoi) de khong mat khi cup dien
+ * ========================================================================== */
+#define BEST_SCORE_ADDR   0x081E0000u
+#define BEST_SCORE_SECTOR FLASH_SECTOR_23
+
+static uint32_t load_best_score(void)
+{
+    uint32_t v = *(volatile uint32_t*)BEST_SCORE_ADDR;
+    return (v == 0xFFFFFFFFu) ? 0 : v;
+}
+
+static void save_best_score(uint32_t score)
+{
+    if (score <= load_best_score()) return;
+
+    HAL_FLASH_Unlock();
+    FLASH_EraseInitTypeDef erase = {0};
+    erase.TypeErase    = FLASH_TYPEERASE_SECTORS;
+    erase.Sector       = BEST_SCORE_SECTOR;
+    erase.NbSectors    = 1;
+    erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+    uint32_t err;
+    HAL_FLASHEx_Erase(&erase, &err);
+    HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, BEST_SCORE_ADDR, score);
+    HAL_FLASH_Lock();
 }
