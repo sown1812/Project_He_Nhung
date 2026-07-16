@@ -78,6 +78,9 @@ static Pipe      g_pipes[NUM_PIPES];
 static uint32_t  g_score;
 static uint32_t  g_best;
 
+static uint32_t load_best_score(void);
+static void     save_best_score(uint32_t score);
+
 static volatile uint32_t g_active_layer; /* layer dang dung de VE (0 hoac 1) */
 static int16_t           g_ground_scroll; /* do cuon cua mat dat */
 static uint32_t          g_frame_count;   /* dung de chay hoat anh canh chim */
@@ -759,8 +762,6 @@ void Game_Loop(void)
         draw_frame();
     }
 }
-
-static uint32_t  g_best;
 
 /* ==========================================================================
  *  Luu diem cao nhat vao Flash (sector cuoi) de khong mat khi cup dien
