@@ -771,22 +771,51 @@ void Game_Loop(void)
 
 static uint32_t load_best_score(void)
 {
-    uint32_t v = *(volatile uint32_t*)BEST_SCORE_ADDR;
-    return (v == 0xFFFFFFFFu) ? 0 : v;
+    uint32_t *ptr = (uint32_t*)BEST_SCORE_ADDR;
+    uint32_t best = 0;
+    
+    // Quét qua sector 128KB (32768 từ 32-bit) để tìm điểm số ghi gần nhất
+    for (uint32_t i = 0; i < 32768; i++) {
+        if (ptr[i] == 0xFFFFFFFFu) {
+            break; // Gặp ô trống đầu tiên
+        }
+        best = ptr[i];
+    }
+    return best;
 }
 
 static void save_best_score(uint32_t score)
 {
     if (score <= load_best_score()) return;
 
+    uint32_t *ptr = (uint32_t*)BEST_SCORE_ADDR;
+    uint32_t write_idx = 32768;
+    
+    // Tìm ô trống 32-bit đầu tiên
+    for (uint32_t i = 0; i < 32768; i++) {
+        if (ptr[i] == 0xFFFFFFFFu) {
+            write_idx = i;
+            break;
+        }
+    }
+    
     HAL_FLASH_Unlock();
-    FLASH_EraseInitTypeDef erase = {0};
-    erase.TypeErase    = FLASH_TYPEERASE_SECTORS;
-    erase.Sector       = BEST_SCORE_SECTOR;
-    erase.NbSectors    = 1;
-    erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
-    uint32_t err;
-    HAL_FLASHEx_Erase(&erase, &err);
-    HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, BEST_SCORE_ADDR, score);
+    
+    if (write_idx >= 32768) {
+        // Sector đã đầy, cần xóa sector và ghi lại từ đầu
+        FLASH_EraseInitTypeDef erase = {0};
+        erase.TypeErase    = FLASH_TYPEERASE_SECTORS;
+        erase.Sector       = BEST_SCORE_SECTOR;
+        erase.NbSectors    = 1;
+        erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+        uint32_t err;
+        HAL_FLASHEx_Erase(&erase, &err);
+        
+        HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, BEST_SCORE_ADDR, score);
+    } else {
+        // Ghi tuần tự vào ô trống tiếp theo (chỉ mất ~16us, không giật màn hình)
+        HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t)&ptr[write_idx], score);
+    }
+    
     HAL_FLASH_Lock();
 }
