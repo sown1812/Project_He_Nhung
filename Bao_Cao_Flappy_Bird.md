@@ -184,12 +184,13 @@ HAL_DMA2D_Init(&hdma2d);
 ### 4.5. Cơ chế lưu trữ kỷ lục điểm số (High Score) vào bộ nhớ Flash
 Để bảo toàn điểm số cao nhất ngay cả khi tắt nguồn hệ thống, chương trình lưu trữ `g_best` trực tiếp vào một Sector trống trong bộ nhớ Flash của MCU:
 - **Địa chỉ Flash**: `0x081E0000` (nằm ở Sector 23 - sector cuối cùng của vi điều khiển STM32F429ZIT6).
-- **Hàm `load_best_score()`**: Khi khởi động hệ thống (`Game_Init`), vi điều khiển đọc giá trị 32-bit từ địa chỉ `0x081E0000`. Nếu vùng nhớ này chưa từng được ghi (giá trị mặc định là `0xFFFFFFFF`), điểm số kỷ lục sẽ được gán bằng 0. Ngược lại, điểm số cũ được tải vào biến `g_best`.
-- **Hàm `save_best_score(uint32_t score)`**: Khi người chơi va chạm và chết, nếu điểm hiện tại cao hơn kỷ lục cũ:
+- **Hàm `load_best_score()`**: Khi khởi động hệ thống (`Game_Init`), vi điều khiển duyệt qua sector 128KB (32768 từ 32-bit) từ địa chỉ gốc `0x081E0000` để tìm vị trí ô trống đầu tiên (chứa giá trị `0xFFFFFFFF`). Điểm số kỷ lục ghi gần đây nhất (ở ô nhớ ngay trước ô trống) sẽ được tải vào biến `g_best`. Nếu sector trống hoàn toàn, điểm số kỷ lục được đặt bằng 0.
+- **Hàm `save_best_score(uint32_t score)`**: Khi người chơi va chạm và đạt kỷ lục mới:
   1. Sử dụng thư viện HAL mở khóa Flash: `HAL_FLASH_Unlock()`.
-  2. Thực hiện xóa Sector 23 bằng hàm `HAL_FLASHEx_Erase`.
-  3. Ghi điểm số mới dưới dạng từ 32-bit (Word) vào địa chỉ `0x081E0000` thông qua `HAL_FLASH_Program`.
-  4. Khóa lại Flash bảo mật: `HAL_FLASH_Lock()`.
+  2. Tìm vị trí ô trống đầu tiên trong sector.
+  3. Nếu sector đã đầy (duyệt hết 128KB mà không còn ô trống), tiến hành xóa Sector 23 bằng hàm `HAL_FLASHEx_Erase` rồi ghi điểm số mới vào địa chỉ gốc.
+  4. Nếu sector còn ô trống, ghi tuần tự điểm số mới vào ô trống tiếp theo bằng `HAL_FLASH_Program` (quá trình chỉ mất khoảng **16 microseconds**, hoàn toàn loại bỏ hiện tượng đứng hình/khựng game 1-2 giây thường thấy khi xóa sector).
+  5. Khóa lại Flash bảo mật: `HAL_FLASH_Lock()`.
 
 ---
 
